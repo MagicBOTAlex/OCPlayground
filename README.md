@@ -10,7 +10,23 @@ ocplay ./computer.yaml test.lua
 
 ## Installation
 
-With Nix (flakes):
+### Ubuntu / Linux (prebuilt)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/MagicBOTAlex/OCPlayground/master/install.sh | bash
+```
+
+The installer downloads the latest released build into `~/.local/share/ocplay`
+and symlinks `~/.local/bin/ocplay`. Options: `--version <tag>` and
+`--prefix <dir>`.
+
+Prebuilt `x86_64-unknown-linux-gnu` tarballs (with `.sha256` checksums) are
+attached to [releases](https://github.com/MagicBOTAlex/OCPlayground/releases).
+Every push to `master` refreshes the rolling `latest` release; `v*` tags create
+versioned releases. The workflow builds on Ubuntu 22.04 so the binary runs on
+22.04 and newer.
+
+### Nix (flakes)
 
 ```sh
 nix profile install .#ocplay     # install / upgrade

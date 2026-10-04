@@ -1,0 +1,70 @@
+name: build
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BIN: ocplay-x86_64-unknown-linux-gnu
+
+jobs:
+  build:
+    name: Build and test (Ubuntu x86_64)
+    # Build on the oldest still-supported Ubuntu runner so the resulting binary
+    # runs on 22.04 and newer.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build (release)
+        run: cargo build --release --locked
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/ocplay/assets
+          cp target/release/ocplay dist/ocplay/ocplay
+          cp -r assets/system dist/ocplay/assets/system
+          tar -C dist -czf "$BIN.tar.gz" ocplay
+          sha256sum "$BIN.tar.gz" > "$BIN.tar.gz.sha256"
+          ls -l "$BIN.tar.gz"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN }}
+          path: |
+            ${{ env.BIN }}.tar.gz
+            ${{ env.BIN }}.tar.gz.sha256
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          # Master pushes update the rolling "latest" release; tags create
+          # versioned releases.
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest build' }}
+          body: |
+            Automated build of `${{ github.sha }}`.
+          files: |
+            ${{ env.BIN }}.tar.gz
+            ${{ env.BIN }}.tar.gz.sha256
+          make_latest: true
