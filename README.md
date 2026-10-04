@@ -203,6 +203,9 @@ The script is copied into the emulated filesystem and executed once OpenOS has
 booted. In non-interactive mode the computer shuts down when the script finishes;
 in `--interactive` mode it then drops into the shell. When stdout is not a
 terminal the final screen is printed as plain text, which is convenient for CI.
+In interactive mode **Ctrl+C force-quits ocplay**; use Ctrl+Alt+C to interrupt the
+running OpenOS program. If `--interactive` is requested without a usable terminal,
+ocplay warns and runs non-interactively instead of hanging.
 
 ## Status
 
@@ -213,7 +216,7 @@ Implemented and working end-to-end:
 - ANSI truecolor terminal rendering (via `ratatui`), wide-character aware.
 - Terminal mouse input delivered as screen `touch`/`drag`/`drop`/`scroll` signals,
   including high-precision mode coordinates (demo: `examples/mouse.lua`).
-- `keyboard` with OpenComputers scancodes, modifiers and Ctrl+C interrupts.
+- `keyboard` with OpenComputers scancodes, modifiers and Ctrl+Alt+C interrupts.
 - `filesystem` backed by a session copy of OpenOS plus configured mounts.
 - `eeprom`, `computer` and the machine host API (`component`, `computer`,
   `system`, `unicode`, `os`).

@@ -18,6 +18,7 @@ use anyhow::{Context, Result};
 use mlua::MultiValue;
 use std::cell::RefCell;
 use std::fs;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -37,7 +38,21 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
         .context("failed to read machine.lua")?;
     let bios = read_bios(&config, &system_dir)?;
 
-    let interactive = options.interactive || config.run.interactive;
+    let interactive = {
+        let requested = options.interactive || config.run.interactive;
+        // A usable terminal is required to type at the emulated keyboard and to
+        // render. Without one, fall back to a non-interactive run so the machine
+        // still shuts down and the final screen is dumped as text.
+        let tty = std::io::stdout().is_terminal()
+            && matches!(crossterm::terminal::size(), Ok((cols, rows)) if cols > 0 && rows > 0);
+        if requested && !tty {
+            eprintln!(
+                "ocplay: interactive mode requested but stdout is not a usable terminal; \
+                 running non-interactively"
+            );
+        }
+        requested && tty
+    };
     let timeout = options
         .timeout
         .or_else(|| (config.run.timeout > 0.0).then_some(config.run.timeout))
@@ -228,7 +243,7 @@ fn wait_terminate_delay(term: &mut Output, screen: &Rc<RefCell<TextBuffer>>, sec
         let slice = remaining.min(Duration::from_millis(50));
         match term.poll(slice) {
             Ok(inputs) => {
-                if inputs.iter().any(is_ctrl_c) {
+                if inputs.iter().any(is_quit) {
                     break;
                 }
             }
@@ -238,8 +253,12 @@ fn wait_terminate_delay(term: &mut Output, screen: &Rc<RefCell<TextBuffer>>, sec
     }
 }
 
-fn is_ctrl_c(input: &InputEvent) -> bool {
-    matches!(input, InputEvent::Key(k) if k.down && k.character == '\u{3}')
+fn is_quit(input: &InputEvent) -> bool {
+    match input {
+        InputEvent::Quit => true,
+        InputEvent::Key(k) => k.down && k.character == '\u{3}',
+        InputEvent::Mouse(_) => false,
+    }
 }
 
 fn run_loop(
@@ -258,7 +277,10 @@ fn run_loop(
 
         match step {
             Step::Sleep(seconds) => {
-                resume_args = wait_for_signal(machine, term, interactive, seconds, timeout, start)?;
+                match wait_for_signal(machine, term, interactive, seconds, timeout, start)? {
+                    Some(args) => resume_args = args,
+                    None => break,
+                }
             }
             Step::Yield => {
                 resume_args = machine.take_signal_args()?;
@@ -299,10 +321,11 @@ fn wait_for_signal(
     seconds: f64,
     timeout: f64,
     start: Instant,
-) -> Result<MultiValue> {
+) -> Result<Option<MultiValue>> {
     if !machine.host.signals.borrow().is_empty() {
         return machine
             .take_signal_args()
+            .map(Some)
             .map_err(|e| anyhow::anyhow!(e.to_string()));
     }
     let deadline = if seconds.is_finite() {
@@ -334,6 +357,7 @@ fn wait_for_signal(
                         .screen_component
                         .touch(mouse.action, mouse.x, mouse.y, mouse.data);
                 }
+                InputEvent::Quit => return Ok(None),
             }
         }
         let _ = term.render(&machine.host.screen.borrow());
@@ -341,15 +365,16 @@ fn wait_for_signal(
         if !machine.host.signals.borrow().is_empty() {
             return machine
                 .take_signal_args()
+                .map(Some)
                 .map_err(|e| anyhow::anyhow!(e.to_string()));
         }
         if let Some(deadline) = deadline {
             if Instant::now() >= deadline {
-                return Ok(MultiValue::new());
+                return Ok(Some(MultiValue::new()));
             }
         }
         if timeout > 0.0 && start.elapsed().as_secs_f64() > timeout {
-            return Ok(MultiValue::new());
+            return Ok(Some(MultiValue::new()));
         }
         let _ = interactive;
     }

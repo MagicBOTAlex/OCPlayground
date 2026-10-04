@@ -74,7 +74,8 @@ Synopsis:
 Options:
     --interactive        Attach the terminal as a keyboard (and mouse) and drop
                          into the live OpenOS shell after the script finishes.
-                         Without it, ocplay runs non-interactively.
+                         Ctrl+C force-quits ocplay; Ctrl+Alt+C interrupts the
+                         guest. Without it, ocplay runs non-interactively.
     --timeout <SECONDS>  Stop after this many seconds. 0 (or omitted) means no
                          limit. Overrides run.timeout from the config.
     --upgrade            Download and install the latest release, then exit.
@@ -175,6 +176,9 @@ Silent (default, no --interactive):
     - No keyboard input is read.
     - If stdout is not a terminal, the final screen buffer is printed as plain
       text (handy for CI/pipelines).
+    - If --interactive (or run.interactive) is set but stdout is not a usable
+      terminal (not a TTY, or the terminal reports 0x0), ocplay prints a warning
+      and runs non-interactively instead of waiting forever.
 
 Interactive (--interactive):
     - The terminal is switched to an alternate screen and raw mode.
@@ -182,7 +186,9 @@ Interactive (--interactive):
       touch signals.
     - After the script finishes (or if there is no script) you get the live
       OpenOS shell at `/home`.
-    - Ctrl+C is a key event (0x03) delivered to the guest, not a host signal.
+    - Ctrl+C is a HOST signal: it force-quits ocplay. To interrupt the running
+      OpenOS program instead, use Ctrl+Alt+C (the standard OpenComputers
+      interrupt), which is delivered to the guest.
 
 After the machine stops, ocplay keeps the final screen for `run.terminateDelay`
 seconds (default 5). Press Ctrl+C during that wait to skip it.

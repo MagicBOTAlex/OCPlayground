@@ -53,6 +53,10 @@ pub struct MouseInput {
 pub enum InputEvent {
     Key(KeyInput),
     Mouse(MouseInput),
+    /// Host-level force quit. Plain Ctrl+C is reserved for this so a stuck
+    /// guest program can always be escaped; OpenOS interrupts programs with
+    /// Ctrl+Alt+C instead.
+    Quit,
 }
 
 pub struct Output {
@@ -64,6 +68,16 @@ pub struct Output {
 impl Output {
     pub fn new(_interactive: bool, mouse: bool) -> Result<Output> {
         if !io::stdout().is_terminal() {
+            return Ok(Output {
+                terminal: None,
+                mouse,
+                modifiers: KeyModifiers::empty(),
+            });
+        }
+        // Some terminals and multiplexers report a 0x0 size before the first
+        // resize; rendering into an empty area shows nothing, so treat that as
+        // a non-interactive (plain text) session instead.
+        if matches!(crossterm::terminal::size(), Ok((cols, rows)) if cols == 0 || rows == 0) {
             return Ok(Output {
                 terminal: None,
                 mouse,
@@ -105,9 +119,13 @@ impl Output {
         loop {
             match event::read()? {
                 Event::Key(key) => {
-                    self.emit_modifier_diff(key.modifiers, &mut inputs);
-                    if let Some(input) = map_key(key) {
-                        inputs.push(InputEvent::Key(input));
+                    if is_host_quit(&key) {
+                        inputs.push(InputEvent::Quit);
+                    } else {
+                        self.emit_modifier_diff(key.modifiers, &mut inputs);
+                        if let Some(input) = map_key(key) {
+                            inputs.push(InputEvent::Key(input));
+                        }
                     }
                 }
                 Event::Mouse(mouse) => {
@@ -257,6 +275,22 @@ fn draw_buffer(frame: &mut Frame, buffer: &TextBuffer) {
             x += width;
         }
     }
+}
+
+/// Plain Ctrl+C is a host-level force quit. Ctrl+Alt+C is left alone so OpenOS
+/// can still interrupt a guest program with it.
+fn is_host_quit(key: &KeyEvent) -> bool {
+    if matches!(key.kind, KeyEventKind::Release) {
+        return false;
+    }
+    if key.modifiers.contains(KeyModifiers::ALT) {
+        return false;
+    }
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        return matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'));
+    }
+    // Terminals without keyboard enhancement report Ctrl+C as ETX.
+    matches!(key.code, KeyCode::Char('\u{3}'))
 }
 
 fn map_key(key: KeyEvent) -> Option<KeyInput> {
@@ -452,7 +486,9 @@ fn char_scan_code(c: char) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
 
     fn event(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
         MouseEvent {
@@ -491,5 +527,52 @@ mod tests {
     #[test]
     fn ignores_move_events() {
         assert!(map_mouse(event(MouseEventKind::Moved, 1, 1)).is_none());
+    }
+
+    fn key(code: KeyCode, modifiers: KeyModifiers, kind: KeyEventKind) -> KeyEvent {
+        KeyEvent {
+            code,
+            modifiers,
+            kind,
+            state: crossterm::event::KeyEventState::empty(),
+        }
+    }
+
+    #[test]
+    fn plain_ctrl_c_is_host_quit() {
+        assert!(is_host_quit(&key(
+            KeyCode::Char('c'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        )));
+        // Terminals without keyboard enhancement report ETX directly.
+        assert!(is_host_quit(&key(
+            KeyCode::Char('\u{3}'),
+            KeyModifiers::empty(),
+            KeyEventKind::Press,
+        )));
+    }
+
+    #[test]
+    fn ctrl_alt_c_is_left_for_the_guest() {
+        assert!(!is_host_quit(&key(
+            KeyCode::Char('c'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+            KeyEventKind::Press,
+        )));
+    }
+
+    #[test]
+    fn plain_c_and_key_release_do_not_quit() {
+        assert!(!is_host_quit(&key(
+            KeyCode::Char('c'),
+            KeyModifiers::empty(),
+            KeyEventKind::Press,
+        )));
+        assert!(!is_host_quit(&key(
+            KeyCode::Char('c'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Release,
+        )));
     }
 }

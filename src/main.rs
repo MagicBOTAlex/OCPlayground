@@ -18,7 +18,8 @@ use std::path::PathBuf;
 #[command(name = "ocplay", version, about = "Run OpenComputers in the terminal")]
 struct Cli {
     /// Attach the terminal as a keyboard and drop into the OpenOS shell after
-    /// running the script. Without this flag the emulator runs non-interactively.
+    /// running the script (Ctrl+C force-quits ocplay; Ctrl+Alt+C interrupts the
+    /// guest). Without this flag the emulator runs non-interactively.
     #[arg(long)]
     interactive: bool,
 
