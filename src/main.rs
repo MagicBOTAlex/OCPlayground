@@ -4,6 +4,7 @@ mod buffer;
 mod color;
 mod components;
 mod config;
+mod llm;
 mod machine;
 mod run;
 mod term;
@@ -30,8 +31,12 @@ struct Cli {
     #[arg(long)]
     upgrade: bool,
 
+    /// Print an extremely detailed description of how to use ocplay and exit.
+    #[arg(long)]
+    llm: bool,
+
     /// The computer configuration file (computer.yaml).
-    #[arg(required_unless_present = "upgrade")]
+    #[arg(required_unless_present_any = ["upgrade", "llm"])]
     config: Option<PathBuf>,
 
     /// Lua script to run once OpenOS has booted.
@@ -44,6 +49,11 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
+
+    if cli.llm {
+        print!("{}", llm::describe());
+        std::process::exit(0);
+    }
 
     if cli.upgrade {
         let code = match upgrade::upgrade() {

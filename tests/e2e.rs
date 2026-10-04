@@ -176,3 +176,17 @@ require("computer").shutdown()"#,
     let written = fs::read_to_string(out.join("args.txt")).unwrap();
     assert_eq!(written, "1=alpha\n2=beta gamma\n3=quo\"te\n");
 }
+
+#[test]
+fn llm_prints_reference_without_a_config() {
+    let output = Command::new(env!("CARGO_BIN_EXE_ocplay"))
+        .arg("--llm")
+        .output()
+        .expect("failed to run ocplay");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("complete usage reference"));
+    assert!(stdout.contains("--interactive"));
+    assert!(stdout.contains("terminateDelay"));
+    assert!(stdout.len() > 5000, "reference too short: {}", stdout.len());
+}

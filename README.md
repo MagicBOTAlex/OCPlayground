@@ -169,7 +169,7 @@ run:
 CLI overrides:
 
 ```
-ocplay [--interactive | --silent] [--timeout N] [--upgrade] <computer.yaml> [script.lua] [args...]
+ocplay [--interactive | --silent] [--timeout N] [--upgrade | --llm] <computer.yaml> [script.lua] [args...]
 ```
 
 - **silent** (default): no stdin; run the script, render while it goes, exit when it finishes or times out.
@@ -178,6 +178,7 @@ ocplay [--interactive | --silent] [--timeout N] [--upgrade] <computer.yaml> [scr
   program run from the shell — read them with `local args, options = require("shell").parse(...)`
   or `local args = {...}`.
 - **`--upgrade`**: update to the latest release and exit (not for Nix installs).
+- **`--llm`**: print an extremely detailed usage reference and exit (no config needed).
 
 ## Usage
 
