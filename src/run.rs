@@ -193,6 +193,11 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
         host.start,
     );
     let is_tty = term.is_tty();
+    // Keep the final screen visible for a moment after the machine stops.
+    if config.run.terminate_delay > 0.0 {
+        let _ = term.render(&host.screen.borrow());
+        std::thread::sleep(Duration::from_secs_f64(config.run.terminate_delay));
+    }
     term.restore();
     if !is_tty {
         crate::term::dump_screen(&host.screen.borrow());

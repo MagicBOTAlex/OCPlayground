@@ -127,6 +127,9 @@ pub struct RunConfig {
     pub timeout: f64,
     #[serde(default)]
     pub interactive: bool,
+    /// Seconds to keep the final screen visible after the machine terminates.
+    #[serde(default = "default_terminate_delay", rename = "terminateDelay")]
+    pub terminate_delay: f64,
 }
 
 impl Default for RunConfig {
@@ -135,6 +138,7 @@ impl Default for RunConfig {
             script: None,
             timeout: 0.0,
             interactive: false,
+            terminate_delay: default_terminate_delay(),
         }
     }
 }
@@ -214,6 +218,9 @@ fn default_fs_path() -> String {
 }
 fn default_mount() -> String {
     "/".into()
+}
+fn default_terminate_delay() -> f64 {
+    5.0
 }
 fn default_true() -> bool {
     true

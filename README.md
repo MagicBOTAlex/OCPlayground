@@ -101,6 +101,8 @@ run:
   script: test.lua
   timeout: 0
   interactive: false
+  # Seconds to keep the final screen visible after the machine stops.
+  terminateDelay: 5
 ```
 
 CLI overrides:
