@@ -195,14 +195,37 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
     let is_tty = term.is_tty();
     // Keep the final screen visible for a moment after the machine stops.
     if config.run.terminate_delay > 0.0 {
-        let _ = term.render(&host.screen.borrow());
-        std::thread::sleep(Duration::from_secs_f64(config.run.terminate_delay));
+        wait_terminate_delay(&mut term, &host.screen, config.run.terminate_delay);
     }
     term.restore();
     if !is_tty {
         crate::term::dump_screen(&host.screen.borrow());
     }
     result
+}
+
+/// Hold the final screen for `seconds`, but let the user cut it short with
+/// Ctrl+C. In raw mode Ctrl+C arrives as a key event rather than SIGINT, so we
+/// poll for input instead of sleeping.
+fn wait_terminate_delay(term: &mut Output, screen: &Rc<RefCell<TextBuffer>>, seconds: f64) {
+    let _ = term.render(&screen.borrow());
+    let deadline = Instant::now() + Duration::from_secs_f64(seconds);
+    while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+        let slice = remaining.min(Duration::from_millis(50));
+        match term.poll(slice) {
+            Ok(inputs) => {
+                if inputs.iter().any(is_ctrl_c) {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+        let _ = term.render(&screen.borrow());
+    }
+}
+
+fn is_ctrl_c(input: &crate::term::KeyInput) -> bool {
+    input.down && input.character == '\u{3}'
 }
 
 fn run_loop(
