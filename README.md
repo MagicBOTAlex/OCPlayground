@@ -26,6 +26,16 @@ Every push to `master` refreshes the rolling `latest` release; `v*` tags create
 versioned releases. The workflow builds on Ubuntu 22.04 so the binary runs on
 22.04 and newer.
 
+Update an installed build in place:
+
+```sh
+ocplay --upgrade
+```
+
+`--upgrade` downloads the latest release and replaces both the binary and its
+bundled system files. Nix-managed installs refuse it (Nix owns the store paths);
+use `nix profile upgrade ocplay` there instead.
+
 ### Nix (flakes)
 
 ```sh
@@ -159,7 +169,7 @@ run:
 CLI overrides:
 
 ```
-ocplay [--interactive | --silent] [--timeout N] <computer.yaml> [script.lua] [args...]
+ocplay [--interactive | --silent] [--timeout N] [--upgrade] <computer.yaml> [script.lua] [args...]
 ```
 
 - **silent** (default): no stdin; run the script, render while it goes, exit when it finishes or times out.
@@ -167,6 +177,7 @@ ocplay [--interactive | --silent] [--timeout N] <computer.yaml> [script.lua] [ar
 - **`[args...]`**: extra arguments are passed to the script as varargs, exactly like an OpenOS
   program run from the shell — read them with `local args, options = require("shell").parse(...)`
   or `local args = {...}`.
+- **`--upgrade`**: update to the latest release and exit (not for Nix installs).
 
 ## Usage
 

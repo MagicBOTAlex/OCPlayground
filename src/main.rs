@@ -7,6 +7,7 @@ mod config;
 mod machine;
 mod run;
 mod term;
+mod upgrade;
 
 use clap::Parser;
 use std::path::PathBuf;
@@ -24,8 +25,14 @@ struct Cli {
     #[arg(long)]
     timeout: Option<f64>,
 
+    /// Update ocplay to the latest release and exit. Not available for
+    /// Nix-managed installs (use `nix profile upgrade`).
+    #[arg(long)]
+    upgrade: bool,
+
     /// The computer configuration file (computer.yaml).
-    config: PathBuf,
+    #[arg(required_unless_present = "upgrade")]
+    config: Option<PathBuf>,
 
     /// Lua script to run once OpenOS has booted.
     script: Option<PathBuf>,
@@ -37,13 +44,32 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
+
+    if cli.upgrade {
+        let code = match upgrade::upgrade() {
+            Ok(code) => code,
+            Err(error) => {
+                eprintln!("ocplay: {:#}", error);
+                1
+            }
+        };
+        std::process::exit(code);
+    }
+
+    let config = match cli.config {
+        Some(config) => config,
+        None => {
+            eprintln!("ocplay: a configuration file is required (see --help)");
+            std::process::exit(2);
+        }
+    };
     let options = run::RunOptions {
         interactive: cli.interactive,
         timeout: cli.timeout,
         script: cli.script,
         args: cli.args,
     };
-    match run::run(&cli.config, options) {
+    match run::run(&config, options) {
         Ok(code) => std::process::exit(code),
         Err(error) => {
             eprintln!("ocplay: {:#}", error);

@@ -9,10 +9,12 @@ license = "MIT"
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
 crossterm = "0.29.0"
+flate2 = "1.1.10"
 mlua = { version = "0.12.2", features = ["error-send", "lua54", "vendored"] }
 ratatui = "0.30.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_yaml = "0.9.34"
+tar = "0.4.46"
 tempfile = "3.27.0"
 unicode-width = "0.2.2"
 ureq = "3.4.2"
