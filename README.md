@@ -13,12 +13,11 @@ ocplay ./computer.yaml test.lua
 With Nix (flakes):
 
 ```sh
-./scripts/install.sh              # install / upgrade
-./scripts/install.sh --uninstall  # remove
+nix profile install .#ocplay     # install / upgrade
+nix profile remove ocplay        # remove
 ```
 
-The script wraps `nix profile install .#ocplay`. You can also run it without
-installing:
+Or run/build it without installing:
 
 ```sh
 nix run .#ocplay -- --help
