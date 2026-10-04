@@ -1,0 +1,30 @@
+name: example
+
+memory: 512
+
+cpu:
+  tier: 2
+
+gpu:
+  tier: 3
+  screen:
+    width: 80
+    height: 25
+    maxDepth: 8
+
+eeprom:
+  bios: builtin
+  boot: auto
+
+filesystems:
+  - label: openos
+    path: builtin
+    mount: /
+    readonly: false
+
+components:
+  keyboard: true
+
+run:
+  timeout: 0
+  interactive: false

@@ -112,14 +112,43 @@ ocplay [--interactive | --silent] [--timeout N] <computer.yaml> [script.lua]
 - **silent** (default): no stdin; run the script, render while it goes, exit when it finishes or times out.
 - **`--interactive`**: run the script, then hand control to the live OpenOS shell.
 
-## Milestones
+## Usage
 
-1. Scaffold + config + vendored system Lua + Lua embed → boot OpenOS to text.
-2. Screen/GPU buffer + ANSI color renderer.
-3. Keyboard + event loop.
-4. Filesystem (RO root + RW mounts).
-5. Script-run mode + YAML polish.
-6. Color depth/palette modes, cursor blink, resize, optional mouse.
+```sh
+# Boot OpenOS, run a script, then exit (non-interactive)
+cargo run -- examples/computer.yaml examples/test.lua
+
+# Drop into the live OpenOS shell after the script
+cargo run -- --interactive examples/computer.yaml examples/test.lua
+
+# Stop after 30 seconds
+cargo run -- --timeout 30 examples/computer.yaml examples/test.lua
+```
+
+The script is copied into the emulated filesystem and executed once OpenOS has
+booted. In non-interactive mode the computer shuts down when the script finishes;
+in `--interactive` mode it then drops into the shell. When stdout is not a
+terminal the final screen is printed as plain text, which is convenient for CI.
+
+## Status
+
+Implemented and working end-to-end:
+
+- Real OpenOS boots and runs (vendored `machine.lua` / BIOS / OpenOS).
+- `screen` + `gpu` with 1/4/8-bit color, palette, resolution and viewport.
+- ANSI truecolor terminal rendering (via `ratatui`), wide-character aware.
+- `keyboard` with OpenComputers scancodes, modifiers and Ctrl+C interrupts.
+- `filesystem` backed by a session copy of OpenOS plus configured mounts.
+- `eeprom`, `computer` and the machine host API (`component`, `computer`,
+  `system`, `unicode`, `os`).
+- Script autostart through OpenOS's own `rc` mechanism.
+
+Not yet implemented (tracked as follow-up work):
+
+- Mouse/touch events for screens.
+- Networking (`internet`, `modem`) and redstone components.
+- GPU VRAM buffers (`allocateBuffer`, `bitblt`).
+- Persistence / save data.
 
 ## Notes
 
