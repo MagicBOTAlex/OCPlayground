@@ -24,6 +24,7 @@ filesystems:
 
 components:
   keyboard: true
+  mouse: true
 
 internet:
   enabled: true

@@ -3,7 +3,7 @@
 pub mod host_api;
 
 use crate::components::keyboard::Keyboard;
-use crate::components::screen::SharedBuffer;
+use crate::components::screen::{Screen, SharedBuffer};
 use crate::components::{Registry, SignalQueue};
 use mlua::{Lua, LuaOptions, MultiValue, StdLib, Thread, Value};
 use std::cell::RefCell;
@@ -21,6 +21,7 @@ pub struct Host {
     pub timeout: f64,
     pub memory_kib: u32,
     pub screen: SharedBuffer,
+    pub screen_component: Rc<Screen>,
     pub keyboard: Rc<Keyboard>,
     pub users: Rc<RefCell<Vec<String>>>,
 }

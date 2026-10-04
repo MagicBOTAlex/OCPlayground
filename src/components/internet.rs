@@ -306,3 +306,21 @@ fn perform_request(
         bytes,
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_http_and_https() {
+        assert!(validate_url("http://example.com").is_ok());
+        assert!(validate_url("https://example.com/path?q=1").is_ok());
+        assert!(validate_url("HTTP://example.com").is_ok());
+    }
+
+    #[test]
+    fn rejects_other_schemes_and_garbage() {
+        assert_eq!(validate_url("ftp://example.com").unwrap_err(), "unsupported protocol");
+        assert_eq!(validate_url("example.com/no/scheme").unwrap_err(), "invalid address");
+    }
+}

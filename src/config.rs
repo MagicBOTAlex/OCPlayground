@@ -113,11 +113,23 @@ pub struct FilesystemConfig {
     pub readonly: bool,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentsConfig {
     #[serde(default = "default_true")]
     pub keyboard: bool,
+    /// Capture terminal mouse events and deliver them as screen touch signals.
+    #[serde(default = "default_true")]
+    pub mouse: bool,
+}
+
+impl Default for ComponentsConfig {
+    fn default() -> Self {
+        ComponentsConfig {
+            keyboard: true,
+            mouse: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -257,4 +269,51 @@ fn default_true() -> bool {
 }
 fn default_user_agent() -> String {
     "opencomputers/ocplay".into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_config_uses_defaults() {
+        let config: Config = serde_yaml::from_str("{}").unwrap();
+        assert_eq!(config.name, "computer");
+        assert_eq!(config.memory, 512);
+        assert_eq!(config.gpu.screen.width, 80);
+        assert_eq!(config.gpu.screen.max_depth, 8);
+        assert!(config.internet.enabled);
+        assert_eq!(config.internet.user_agent, "opencomputers/ocplay");
+        assert_eq!(config.run.terminate_delay, 5.0);
+        assert!(config.components.keyboard);
+        assert!(config.components.mouse);
+    }
+
+    #[test]
+    fn parses_internet_and_run_settings() {
+        let yaml = r#"
+internet:
+  enabled: false
+  timeout: 12.5
+  tcp: true
+  userAgent: custom/1.0
+components:
+  mouse: false
+run:
+  terminateDelay: 0
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(!config.internet.enabled);
+        assert_eq!(config.internet.timeout, 12.5);
+        assert!(config.internet.tcp);
+        assert_eq!(config.internet.user_agent, "custom/1.0");
+        assert!(!config.components.mouse);
+        assert_eq!(config.run.terminate_delay, 0.0);
+    }
+
+    #[test]
+    fn unknown_fields_are_rejected() {
+        let result: Result<Config, _> = serde_yaml::from_str("totallyUnknown: true");
+        assert!(result.is_err());
+    }
 }

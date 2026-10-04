@@ -25,14 +25,14 @@ These choices were made up front and drive the implementation:
 The minimum needed to boot OpenOS, run scripts, and reproduce in-game behavior:
 
 - `eeprom` — serves the BIOS and boot address
-- `screen` — text buffer with 1/4/8-bit color, resolution, viewport, palette
+- `screen` — text buffer with 1/4/8-bit color, resolution, viewport, palette, and touch/pointer signals
 - `gpu` — bind, colors, palette, depth, resolution, viewport, `set`/`copy`/`fill`/`get`
 - `keyboard` — `key_down`/`key_up`/`clipboard` with OpenComputers key codes
 - `filesystem` — `open`/`read`/`write`/`seek`/`close`, listing, metadata; RO OpenOS root + RW mounts
 - `computer` — `beep`, `getDeviceInfo`, `getProgramLocations`, users
 - `internet` — HTTP(S) `request` with a streaming handle (`read`/`response`/`finishConnect`/`close`)
 
-Redstone, modems and other cards are intentionally out of scope for the first phase and will be
+Redstone, modems, robots and other cards are **unplanned** (see [Status](#status)); they can still be
 added through the same component registry.
 
 ## Architecture
@@ -44,12 +44,11 @@ src/
   machine/mod.rs        # Lua init, resume loop, signal queue, sleep scheduler
   machine/host_api.rs   # component/computer/system/unicode/os globals
   components/mod.rs     # Component trait + Registry (DI seam)
-  components/…          # eeprom, screen, gpu, keyboard, filesystem, computer
+  components/…          # eeprom, screen, gpu, keyboard, filesystem, computer, internet
   color.rs              # PackedColor, palettes, depth conversion, wcwidth
-  term/render.rs        # text buffer -> ANSI (truecolor/256/16), diffing
-  term/input.rs         # crossterm raw mode, key -> OC key code
-  term/mod.rs           # alternate screen, cursor, restore on exit
+  term/mod.rs           # alternate screen, ANSI rendering, key + mouse input
   run.rs                # script injection + silent/interactive modes
+  tests/e2e.rs          # end-to-end tests against the compiled binary
 assets/system/          # vendored machine.lua, bios.lua, loot/openos/
 ```
 
@@ -60,6 +59,8 @@ assets/system/          # vendored machine.lua, bios.lua, loot/openos/
   host-callback path above. HTTP runs on a background thread so the screen keeps updating while a
   request is in flight.
 - Terminal output is produced by rendering the `gpu`/`screen` text buffer, not by parsing guest ANSI.
+- In interactive mode the terminal mouse is captured and converted into OpenComputers screen
+  `touch`/`drag`/`drop`/`scroll` signals, matching the in-game 1-based (or high-precision) coordinates.
 
 ## Configuration (`computer.yaml`)
 
@@ -99,6 +100,9 @@ filesystems:
 
 components:
   keyboard: true
+  # Capture the terminal mouse and deliver it to the screen as touch signals
+  # (interactive mode only).
+  mouse: true
 
 internet:
   # Whether the internet card is present and HTTP requests are allowed.
@@ -151,6 +155,8 @@ Implemented and working end-to-end:
 - Real OpenOS boots and runs (vendored `machine.lua` / BIOS / OpenOS).
 - `screen` + `gpu` with 1/4/8-bit color, palette, resolution and viewport.
 - ANSI truecolor terminal rendering (via `ratatui`), wide-character aware.
+- Terminal mouse input delivered as screen `touch`/`drag`/`drop`/`scroll` signals,
+  including high-precision mode coordinates.
 - `keyboard` with OpenComputers scancodes, modifiers and Ctrl+C interrupts.
 - `filesystem` backed by a session copy of OpenOS plus configured mounts.
 - `eeprom`, `computer` and the machine host API (`component`, `computer`,
@@ -159,13 +165,39 @@ Implemented and working end-to-end:
   bodies) with OpenComputers' streaming handle semantics, run on a worker thread.
 - Script autostart through OpenOS's own `rc` mechanism.
 
-Not yet implemented (tracked as follow-up work):
+### Tests
 
-- TCP sockets (`internet.connect`) and the `internet_ready` signal.
-- Mouse/touch events for screens.
-- Modems, redstone and other components.
-- GPU VRAM buffers (`allocateBuffer`, `bitblt`).
-- Persistence / save data.
+```sh
+cargo test        # unit tests + end-to-end tests that boot OpenOS
+```
+
+Unit tests cover config parsing, URL validation, the mouse→signal mapping and
+screen signal emission. The end-to-end tests run the compiled binary against a
+temporary computer: booting and running a script, an HTTP GET against a local
+server, and the missing-root-filesystem error.
+
+### Unplanned
+
+The following are explicitly **not planned** for now (they may be contributed
+through the component registry). Everything below is a known gap:
+
+- **Components**: `modem` / `tunnel`, `data` (crypto/compress), `drive`,
+  `redstone` (+ bundled / wireless / signaller), `robot`, `drone`, `tablet`,
+  `server` (RPC), `geolyzer`, `motion_sensor`, `transposer`, `trading`, `sign`,
+  `navigation`, `piston`, `leash`, `database`, `experience`, `generator`,
+  `crafting`, `debug`, and all upgrades.
+- **Internet**: TCP sockets (`internet.connect`, `internet_ready`), proxies, and
+  the allow/deny address filtering rules.
+- **GPU**: VRAM buffers (`allocateBuffer`, `freeBuffer`, `bitblt`, active
+  buffer, buffer memory reporting).
+- **Filesystem**: OpenComputers-style `userdata` file handles (we use integer
+  tokens), symlinks, and accurate space accounting.
+- **Host fidelity**: the `userdata` host API and persistence (`save`/`load`,
+  NBT disk images), enforced memory limits, execution-time interrupts for
+  runaway scripts, sandboxed bytecode, and alternate architectures (LuaJ / 5.2 / 5.3).
+- **Front-end**: screen resize handling, the in-game `font.hex` bitmap font,
+  audio (`computer.beep`), and multi-screen support.
+- **Other**: save/load of machine state, network filtering config, and CI.
 
 ## Notes
 

@@ -5,7 +5,8 @@ use crate::buffer::TextBuffer;
 use crate::color::wcwidth;
 use anyhow::Result;
 use crossterm::event::{
-    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
+    MouseEventKind,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -27,6 +28,31 @@ pub struct KeyInput {
     pub character: char,
     pub code: i32,
     pub down: bool,
+}
+
+/// A touch/pointer action on the emulated screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MouseAction {
+    Press,
+    Drag,
+    Release,
+    Scroll,
+}
+
+/// A pointer event. Coordinates are terminal cells (0-based); `data` is the
+/// button index for press/drag/release and the wheel delta for scroll.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MouseInput {
+    pub action: MouseAction,
+    pub x: i32,
+    pub y: i32,
+    pub data: i32,
+}
+
+/// Anything the front-end can deliver to the machine.
+pub enum InputEvent {
+    Key(KeyInput),
+    Mouse(MouseInput),
 }
 
 pub struct Output {
@@ -67,7 +93,7 @@ impl Output {
         })
     }
 
-    pub fn poll(&mut self, timeout: Duration) -> Result<Vec<KeyInput>> {
+    pub fn poll(&mut self, timeout: Duration) -> Result<Vec<InputEvent>> {
         if self.terminal.is_none() {
             std::thread::sleep(timeout.min(Duration::from_millis(20)));
             return Ok(Vec::new());
@@ -81,7 +107,14 @@ impl Output {
                 Event::Key(key) => {
                     self.emit_modifier_diff(key.modifiers, &mut inputs);
                     if let Some(input) = map_key(key) {
-                        inputs.push(input);
+                        inputs.push(InputEvent::Key(input));
+                    }
+                }
+                Event::Mouse(mouse) => {
+                    if self.mouse {
+                        if let Some(input) = map_mouse(mouse) {
+                            inputs.push(InputEvent::Mouse(input));
+                        }
                     }
                 }
                 Event::Resize(_, _) => {}
@@ -94,7 +127,7 @@ impl Output {
         Ok(inputs)
     }
 
-    fn emit_modifier_diff(&mut self, want: KeyModifiers, inputs: &mut Vec<KeyInput>) {
+    fn emit_modifier_diff(&mut self, want: KeyModifiers, inputs: &mut Vec<InputEvent>) {
         for (flag, code) in [
             (KeyModifiers::CONTROL, MOD_CONTROL),
             (KeyModifiers::SHIFT, MOD_SHIFT),
@@ -103,17 +136,17 @@ impl Output {
             let was = self.modifiers.contains(flag);
             let is = want.contains(flag);
             if is && !was {
-                inputs.push(KeyInput {
+                inputs.push(InputEvent::Key(KeyInput {
                     character: '\0',
                     code,
                     down: true,
-                });
+                }));
             } else if !is && was {
-                inputs.push(KeyInput {
+                inputs.push(InputEvent::Key(KeyInput {
                     character: '\0',
                     code,
                     down: false,
-                });
+                }));
             }
         }
         self.modifiers = want;
@@ -331,6 +364,32 @@ fn special(code: i32, down: bool) -> Option<KeyInput> {
     })
 }
 
+fn mouse_button(button: MouseButton) -> i32 {
+    match button {
+        MouseButton::Left => 0,
+        MouseButton::Right => 1,
+        MouseButton::Middle => 2,
+    }
+}
+
+fn map_mouse(event: MouseEvent) -> Option<MouseInput> {
+    let (action, data) = match event.kind {
+        MouseEventKind::Down(button) => (MouseAction::Press, mouse_button(button)),
+        MouseEventKind::Drag(button) => (MouseAction::Drag, mouse_button(button)),
+        MouseEventKind::Up(button) => (MouseAction::Release, mouse_button(button)),
+        MouseEventKind::ScrollUp => (MouseAction::Scroll, 1),
+        MouseEventKind::ScrollDown => (MouseAction::Scroll, -1),
+        // Horizontal wheel and move events are not part of the OC screen API.
+        _ => return None,
+    };
+    Some(MouseInput {
+        action,
+        x: event.column as i32,
+        y: event.row as i32,
+        data,
+    })
+}
+
 /// Map a printable character to its OpenComputers scan code.
 fn char_scan_code(c: char) -> Option<i32> {
     let lower = c.to_ascii_lowercase();
@@ -388,4 +447,49 @@ fn char_scan_code(c: char) -> Option<i32> {
         _ => return None,
     };
     Some(base)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+
+    fn event(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
+        MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::empty(),
+        }
+    }
+
+    #[test]
+    fn maps_press_drag_and_release() {
+        let press = map_mouse(event(MouseEventKind::Down(MouseButton::Left), 3, 7)).unwrap();
+        assert_eq!(press.action, MouseAction::Press);
+        assert_eq!((press.x, press.y, press.data), (3, 7, 0));
+
+        let drag = map_mouse(event(MouseEventKind::Drag(MouseButton::Right), 4, 8)).unwrap();
+        assert_eq!(drag.action, MouseAction::Drag);
+        assert_eq!(drag.data, 1);
+
+        let up = map_mouse(event(MouseEventKind::Up(MouseButton::Middle), 5, 9)).unwrap();
+        assert_eq!(up.action, MouseAction::Release);
+        assert_eq!(up.data, 2);
+    }
+
+    #[test]
+    fn maps_vertical_scroll_to_delta() {
+        let up = map_mouse(event(MouseEventKind::ScrollUp, 1, 2)).unwrap();
+        assert_eq!(up.action, MouseAction::Scroll);
+        assert_eq!(up.data, 1);
+
+        let down = map_mouse(event(MouseEventKind::ScrollDown, 1, 2)).unwrap();
+        assert_eq!(down.data, -1);
+    }
+
+    #[test]
+    fn ignores_move_events() {
+        assert!(map_mouse(event(MouseEventKind::Moved, 1, 1)).is_none());
+    }
 }

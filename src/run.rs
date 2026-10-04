@@ -13,7 +13,7 @@ use crate::components::screen::Screen;
 use crate::components::{new_signal_queue, Registry};
 use crate::config::{self, Config};
 use crate::machine::{Host, Machine, Step};
-use crate::term::Output;
+use crate::term::{InputEvent, Output};
 use anyhow::{Context, Result};
 use mlua::MultiValue;
 use std::cell::RefCell;
@@ -113,8 +113,10 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
     let screen = Rc::new(Screen::new(
         buffer.clone(),
         (config.gpu.screen.width as f64, config.gpu.screen.height as f64),
+        signals.clone(),
     ));
     let screen_address = registry.borrow_mut().add(screen.clone());
+    *screen.address.borrow_mut() = screen_address.clone();
 
     let gpu = Rc::new(Gpu::new(
         buffer.clone(),
@@ -187,12 +189,13 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
         timeout: 10.0,
         memory_kib: config.memory,
         screen: buffer.clone(),
+        screen_component: screen.clone(),
         keyboard: keyboard.clone(),
         users,
     });
 
     let mut machine = Machine::create(host.clone(), &machine_src)?;
-    let mut term = Output::new(interactive, false)?;
+    let mut term = Output::new(interactive, interactive && config.components.mouse)?;
 
     let result = run_loop(
         &mut machine,
@@ -233,8 +236,8 @@ fn wait_terminate_delay(term: &mut Output, screen: &Rc<RefCell<TextBuffer>>, sec
     }
 }
 
-fn is_ctrl_c(input: &crate::term::KeyInput) -> bool {
-    input.down && input.character == '\u{3}'
+fn is_ctrl_c(input: &InputEvent) -> bool {
+    matches!(input, InputEvent::Key(k) if k.down && k.character == '\u{3}')
 }
 
 fn run_loop(
@@ -315,10 +318,20 @@ fn wait_for_signal(
         };
         let inputs = term.poll(slice)?;
         for input in inputs {
-            if input.down {
-                machine.host.keyboard.key_down(input.character, input.code);
-            } else {
-                machine.host.keyboard.key_up(input.character, input.code);
+            match input {
+                InputEvent::Key(input) => {
+                    if input.down {
+                        machine.host.keyboard.key_down(input.character, input.code);
+                    } else {
+                        machine.host.keyboard.key_up(input.character, input.code);
+                    }
+                }
+                InputEvent::Mouse(mouse) => {
+                    machine
+                        .host
+                        .screen_component
+                        .touch(mouse.action, mouse.x, mouse.y, mouse.data);
+                }
             }
         }
         let _ = term.render(&machine.host.screen.borrow());

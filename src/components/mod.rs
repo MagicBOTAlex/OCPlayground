@@ -15,7 +15,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 /// A machine signal, the OpenComputers equivalent of an event.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SignalArg {
     Nil,
     Bool(bool),
@@ -24,7 +24,7 @@ pub enum SignalArg {
     Str(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Signal {
     pub name: String,
     pub args: Vec<SignalArg>,
