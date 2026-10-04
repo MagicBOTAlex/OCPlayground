@@ -70,25 +70,38 @@ impl Machine {
 
     /// Resume the machine thread with the given values.
     pub fn step(&mut self, args: MultiValue) -> Step {
-        let result: mlua::Result<MultiValue> = self.thread.resume(args);
-        match result {
-            Err(error) => Step::Finished(false, Some(error.to_string())),
-            Ok(values) => {
-                if self.thread.is_finished() {
-                    let success = matches!(values.get(0), Some(Value::Boolean(true)));
-                    let message = values
-                        .get(1)
-                        .filter(|v| !v.is_nil())
-                        .and_then(|v| v.to_string().ok());
-                    Step::Finished(success, message)
-                } else {
-                    match values.get(0) {
-                        Some(Value::Integer(i)) => Step::Sleep(*i as f64),
-                        Some(Value::Number(n)) => Step::Sleep(*n),
-                        Some(Value::Boolean(b)) => Step::Shutdown(*b),
-                        _ => Step::Yield,
+        let mut resume = args;
+        loop {
+            let result: mlua::Result<MultiValue> = self.thread.resume(resume);
+            let values = match result {
+                Err(error) => return Step::Finished(false, Some(error.to_string())),
+                Ok(values) => values,
+            };
+            if self.thread.is_finished() {
+                let success = matches!(values.get(0), Some(Value::Boolean(true)));
+                let message = values
+                    .get(1)
+                    .filter(|v| !v.is_nil())
+                    .and_then(|v| v.to_string().ok());
+                return Step::Finished(success, message);
+            }
+            match values.get(0) {
+                // `machine.lua` yields a host callback for non-direct component
+                // methods; run it and resume the coroutine with its result.
+                Some(Value::Function(function)) => {
+                    match function.call::<Value>(()) {
+                        Ok(value) => {
+                            let mut next = MultiValue::new();
+                            next.push_back(value);
+                            resume = next;
+                        }
+                        Err(error) => return Step::Finished(false, Some(error.to_string())),
                     }
                 }
+                Some(Value::Integer(i)) => return Step::Sleep(*i as f64),
+                Some(Value::Number(n)) => return Step::Sleep(*n),
+                Some(Value::Boolean(b)) => return Step::Shutdown(*b),
+                _ => return Step::Yield,
             }
         }
     }

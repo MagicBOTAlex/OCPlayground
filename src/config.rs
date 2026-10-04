@@ -23,6 +23,8 @@ pub struct Config {
     #[serde(default)]
     pub components: ComponentsConfig,
     #[serde(default)]
+    pub internet: InternetConfig,
+    #[serde(default)]
     pub run: RunConfig,
 }
 
@@ -116,6 +118,34 @@ pub struct FilesystemConfig {
 pub struct ComponentsConfig {
     #[serde(default = "default_true")]
     pub keyboard: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InternetConfig {
+    /// Whether the internet card is present and HTTP requests are allowed.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// HTTP request timeout in seconds; `0` means no timeout.
+    #[serde(default)]
+    pub timeout: f64,
+    /// Whether TCP connections are permitted (not implemented yet).
+    #[serde(default)]
+    pub tcp: bool,
+    /// Value sent as the default `User-Agent` request header.
+    #[serde(default = "default_user_agent", rename = "userAgent")]
+    pub user_agent: String,
+}
+
+impl Default for InternetConfig {
+    fn default() -> Self {
+        InternetConfig {
+            enabled: true,
+            timeout: 0.0,
+            tcp: false,
+            user_agent: default_user_agent(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -224,4 +254,7 @@ fn default_terminate_delay() -> f64 {
 }
 fn default_true() -> bool {
     true
+}
+fn default_user_agent() -> String {
+    "opencomputers/ocplay".into()
 }

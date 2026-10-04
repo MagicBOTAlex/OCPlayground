@@ -5,6 +5,7 @@ pub mod computer;
 pub mod eeprom;
 pub mod filesystem;
 pub mod gpu;
+pub mod internet;
 pub mod keyboard;
 pub mod screen;
 

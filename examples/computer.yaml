@@ -25,6 +25,14 @@ filesystems:
 components:
   keyboard: true
 
+internet:
+  enabled: true
+  # HTTP request timeout in seconds; 0 = no timeout.
+  timeout: 30
+  # TCP sockets are not implemented yet.
+  tcp: false
+  userAgent: opencomputers/ocplay
+
 run:
   timeout: 0
   interactive: false

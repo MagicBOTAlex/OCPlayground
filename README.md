@@ -30,8 +30,9 @@ The minimum needed to boot OpenOS, run scripts, and reproduce in-game behavior:
 - `keyboard` — `key_down`/`key_up`/`clipboard` with OpenComputers key codes
 - `filesystem` — `open`/`read`/`write`/`seek`/`close`, listing, metadata; RO OpenOS root + RW mounts
 - `computer` — `beep`, `getDeviceInfo`, `getProgramLocations`, users
+- `internet` — HTTP(S) `request` with a streaming handle (`read`/`response`/`finishConnect`/`close`)
 
-Networking, redstone, and other cards are intentionally out of scope for the first phase and will be
+Redstone, modems and other cards are intentionally out of scope for the first phase and will be
 added through the same component registry.
 
 ## Architecture
@@ -53,9 +54,11 @@ assets/system/          # vendored machine.lua, bios.lua, loot/openos/
 ```
 
 - The host runs `machine.lua` as a Lua thread and interprets yields like OpenComputers does:
-  a `number` is a requested sleep (interruptible by signals), a `boolean` is shutdown/reboot.
-- All component methods are registered as **direct**, so component calls never yield across the host
-  boundary.
+  a `number` is a requested sleep (interruptible by signals), a `boolean` is shutdown/reboot,
+  and a `function` is a host callback that is invoked and resumed with its result.
+- Most component methods are **direct**; the few that aren't (e.g. `internet.request`) use the
+  host-callback path above. HTTP runs on a background thread so the screen keeps updating while a
+  request is in flight.
 - Terminal output is produced by rendering the `gpu`/`screen` text buffer, not by parsing guest ANSI.
 
 ## Configuration (`computer.yaml`)
@@ -96,6 +99,15 @@ filesystems:
 
 components:
   keyboard: true
+
+internet:
+  # Whether the internet card is present and HTTP requests are allowed.
+  enabled: true
+  # HTTP request timeout in seconds; 0 = no timeout.
+  timeout: 30
+  # TCP sockets are not implemented yet.
+  tcp: false
+  userAgent: opencomputers/ocplay
 
 run:
   script: test.lua
@@ -143,12 +155,15 @@ Implemented and working end-to-end:
 - `filesystem` backed by a session copy of OpenOS plus configured mounts.
 - `eeprom`, `computer` and the machine host API (`component`, `computer`,
   `system`, `unicode`, `os`).
+- `internet` card: HTTP/HTTPS `request` (GET/POST/custom method, headers, POST
+  bodies) with OpenComputers' streaming handle semantics, run on a worker thread.
 - Script autostart through OpenOS's own `rc` mechanism.
 
 Not yet implemented (tracked as follow-up work):
 
+- TCP sockets (`internet.connect`) and the `internet_ready` signal.
 - Mouse/touch events for screens.
-- Networking (`internet`, `modem`) and redstone components.
+- Modems, redstone and other components.
 - GPU VRAM buffers (`allocateBuffer`, `bitblt`).
 - Persistence / save data.
 

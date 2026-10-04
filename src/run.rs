@@ -7,6 +7,7 @@ use crate::components::computer::Computer;
 use crate::components::eeprom::Eeprom;
 use crate::components::filesystem::HostFileSystem;
 use crate::components::gpu::Gpu;
+use crate::components::internet::Internet;
 use crate::components::keyboard::Keyboard;
 use crate::components::screen::Screen;
 use crate::components::{new_signal_queue, Registry};
@@ -130,6 +131,14 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
 
     let eeprom = Rc::new(Eeprom::new(bios));
     let eeprom_address = registry.borrow_mut().add(eeprom.clone());
+
+    let internet = Rc::new(Internet::new(
+        config.internet.enabled,
+        config.internet.timeout,
+        config.internet.user_agent.clone(),
+        config.internet.tcp,
+    ));
+    let _internet_address = registry.borrow_mut().add(internet);
 
     // Set the boot device.
     let boot = if config.eeprom.boot == "auto" {
@@ -300,7 +309,8 @@ fn wait_for_signal(
         let slice = match deadline {
             Some(deadline) => deadline
                 .saturating_duration_since(Instant::now())
-                .min(Duration::from_millis(30)),
+                .min(Duration::from_millis(30))
+                .max(Duration::from_millis(2)),
             None => Duration::from_millis(30),
         };
         let inputs = term.poll(slice)?;

@@ -15,6 +15,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_yaml = "0.9.34"
 tempfile = "3.27.0"
 unicode-width = "0.2.2"
+ureq = "3.4.2"
 
 [profile.release]
 lto = true
