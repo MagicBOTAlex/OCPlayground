@@ -178,15 +178,43 @@ require("computer").shutdown()"#,
 }
 
 #[test]
-fn llm_prints_reference_without_a_config() {
+fn llm_fetches_reference_from_the_url() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = [0u8; 1024];
+        let _ = socket.read(&mut request);
+        let body = "# ocplay — complete usage reference\n\n--interactive terminateDelay";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        socket.write_all(response.as_bytes()).unwrap();
+    });
+
     let output = Command::new(env!("CARGO_BIN_EXE_ocplay"))
         .arg("--llm")
+        .env("OCPLAY_LLM_URL", format!("http://{addr}/llm.md"))
         .output()
         .expect("failed to run ocplay");
-    assert!(output.status.success());
+    server.join().unwrap();
+
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("complete usage reference"));
-    assert!(stdout.contains("--interactive"));
-    assert!(stdout.contains("terminateDelay"));
-    assert!(stdout.len() > 5000, "reference too short: {}", stdout.len());
+    assert!(stdout.contains("complete usage reference"), "stdout: {stdout}");
+    assert!(stdout.contains("--interactive"), "stdout: {stdout}");
+}
+
+#[test]
+fn llm_reports_fetch_failure_without_a_config() {
+    let output = Command::new(env!("CARGO_BIN_EXE_ocplay"))
+        .arg("--llm")
+        .env("OCPLAY_LLM_URL", "http://127.0.0.1:1/llm.md")
+        .output()
+        .expect("failed to run ocplay");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("could not fetch"), "stderr: {stderr}");
 }

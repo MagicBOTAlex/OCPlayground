@@ -32,7 +32,9 @@ struct Cli {
     #[arg(long)]
     upgrade: bool,
 
-    /// Print an extremely detailed description of how to use ocplay and exit.
+    /// Fetch and print the detailed usage reference (from the project's
+    /// llm.md on GitHub) and exit. Requires network access; override the
+    /// source with OCPLAY_LLM_URL.
     #[arg(long)]
     llm: bool,
 
@@ -52,8 +54,23 @@ fn main() {
     let cli = Cli::parse();
 
     if cli.llm {
-        print!("{}", llm::describe());
-        std::process::exit(0);
+        match llm::fetch() {
+            Ok(text) => {
+                print!("{}", text);
+                if !text.ends_with('\n') {
+                    println!();
+                }
+                std::process::exit(0);
+            }
+            Err(error) => {
+                eprintln!(
+                    "ocplay: could not fetch the --llm reference from {}: {:#}",
+                    llm::url(),
+                    error
+                );
+                std::process::exit(1);
+            }
+        }
     }
 
     if cli.upgrade {
