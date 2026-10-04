@@ -139,6 +139,9 @@ cargo run -- examples/computer.yaml examples/test.lua
 # Drop into the live OpenOS shell after the script
 cargo run -- --interactive examples/computer.yaml examples/test.lua
 
+# Interactive mouse/touch demo (click/drag to paint, right-click or any key to quit)
+cargo run -- --interactive examples/computer.yaml examples/mouse.lua
+
 # Stop after 30 seconds
 cargo run -- --timeout 30 examples/computer.yaml examples/test.lua
 ```
@@ -156,7 +159,7 @@ Implemented and working end-to-end:
 - `screen` + `gpu` with 1/4/8-bit color, palette, resolution and viewport.
 - ANSI truecolor terminal rendering (via `ratatui`), wide-character aware.
 - Terminal mouse input delivered as screen `touch`/`drag`/`drop`/`scroll` signals,
-  including high-precision mode coordinates.
+  including high-precision mode coordinates (demo: `examples/mouse.lua`).
 - `keyboard` with OpenComputers scancodes, modifiers and Ctrl+C interrupts.
 - `filesystem` backed by a session copy of OpenOS plus configured mounts.
 - `eeprom`, `computer` and the machine host API (`component`, `computer`,
