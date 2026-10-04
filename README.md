@@ -62,17 +62,45 @@ assets/system/          # vendored machine.lua, bios.lua, loot/openos/
 
 ```yaml
 name: my-computer
-memory: 512                 # KiB
-cpu:  { tier: 2 }
+
+# KiB of RAM available to the Lua machine.
+memory: 512
+
+cpu:
+  tier: 2
+
 gpu:
-  tier: 3                   # max depth: 1 -> 1-bit, 2 -> 4-bit, 3 -> 8-bit
-  screen: { width: 80, height: 25, maxDepth: 8 }
-eeprom: { bios: builtin, boot: auto }   # builtin | path
+  # Maximum color depth: 1 -> 1-bit, 2 -> 4-bit, 3 -> 8-bit.
+  tier: 3
+  screen:
+    width: 80
+    height: 25
+    maxDepth: 8
+
+eeprom:
+  # "builtin" uses the vendored OpenComputers BIOS, otherwise a path to a .lua file.
+  bios: builtin
+  # "auto" picks the first bootable filesystem, otherwise a filesystem label.
+  boot: auto
+
 filesystems:
-  - { label: openos, path: builtin, mount: /, readonly: false }  # served from a session copy
-  - { label: data,   path: ./data,  mount: /home, readonly: false }
-components: { keyboard: true }
-run: { script: test.lua, timeout: 0, interactive: false }
+  # "builtin" serves a session copy of the vendored OpenOS; otherwise a host directory.
+  - label: openos
+    path: builtin
+    mount: /
+    readonly: false
+  - label: data
+    path: ./data
+    mount: /home
+    readonly: false
+
+components:
+  keyboard: true
+
+run:
+  script: test.lua
+  timeout: 0
+  interactive: false
 ```
 
 CLI overrides:
