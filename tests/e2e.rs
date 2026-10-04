@@ -51,12 +51,13 @@ fn base_config(extra_mount: Option<&Path>) -> String {
     config
 }
 
-fn run_ocplay(config: &Path, script: Option<&Path>) -> Output {
+fn run_ocplay(config: &Path, script: Option<&Path>, args: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_ocplay"));
     command.arg(config);
     if let Some(script) = script {
         command.arg(script);
     }
+    command.args(args);
     command.output().expect("failed to run ocplay")
 }
 
@@ -74,7 +75,7 @@ require("computer").shutdown()"#,
     )
     .unwrap();
 
-    let output = run_ocplay(&config, Some(&script));
+    let output = run_ocplay(&config, Some(&script), &[]);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "stderr: {stderr}");
@@ -116,7 +117,7 @@ require("computer").shutdown()"#
     )
     .unwrap();
 
-    let output = run_ocplay(&config, Some(&script));
+    let output = run_ocplay(&config, Some(&script), &[]);
     server.join().unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -135,8 +136,43 @@ fn missing_root_filesystem_fails() {
     )
     .unwrap();
 
-    let output = run_ocplay(&config, None);
+    let output = run_ocplay(&config, None, &[]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success());
     assert!(stderr.contains("no root filesystem"), "stderr: {stderr}");
+}
+
+#[test]
+fn script_receives_cli_arguments() {
+    let dir = temp_dir("args");
+    let out = dir.join("out");
+    fs::create_dir_all(&out).unwrap();
+    let config = dir.join("computer.yaml");
+    fs::write(&config, base_config(Some(&out))).unwrap();
+    let script = dir.join("script.lua");
+    fs::write(
+        &script,
+        r#"local args = { ... }
+local f = assert(io.open("/out/args.txt", "w"))
+for i, value in ipairs(args) do
+  f:write(i .. "=" .. value .. "\n")
+end
+f:close()
+require("computer").shutdown()"#,
+    )
+    .unwrap();
+
+    let output = run_ocplay(
+        &config,
+        Some(&script),
+        &["alpha", "beta gamma", "quo\"te"],
+    );
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let written = fs::read_to_string(out.join("args.txt")).unwrap();
+    assert_eq!(written, "1=alpha\n2=beta gamma\n3=quo\"te\n");
 }

@@ -29,6 +29,10 @@ struct Cli {
 
     /// Lua script to run once OpenOS has booted.
     script: Option<PathBuf>,
+
+    /// Arguments passed to the script (available inside it as `...`).
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    args: Vec<String>,
 }
 
 fn main() {
@@ -37,6 +41,7 @@ fn main() {
         interactive: cli.interactive,
         timeout: cli.timeout,
         script: cli.script,
+        args: cli.args,
     };
     match run::run(&cli.config, options) {
         Ok(code) => std::process::exit(code),

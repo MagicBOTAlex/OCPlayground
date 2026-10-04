@@ -26,6 +26,7 @@ pub struct RunOptions {
     pub interactive: bool,
     pub timeout: Option<f64>,
     pub script: Option<PathBuf>,
+    pub args: Vec<String>,
 }
 
 pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
@@ -45,6 +46,7 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
         .script
         .clone()
         .or_else(|| config.run.script.as_ref().map(PathBuf::from));
+    let script_args = options.args.clone();
 
     // --- shared resources -------------------------------------------------
     let signals = new_signal_queue();
@@ -175,7 +177,7 @@ pub fn run(config_path: &Path, options: RunOptions) -> Result<i32> {
 
     // Write the rc.d autostart now that all component addresses are known.
     if let Some(root_dir) = root_dir.as_ref() {
-        inject_rc(root_dir, &mount_lines, has_script, interactive)?;
+        inject_rc(root_dir, &mount_lines, has_script, &script_args, interactive)?;
     }
 
     // --- machine ----------------------------------------------------------
@@ -422,6 +424,7 @@ fn inject_rc(
     root: &Path,
     mount_lines: &[String],
     has_script: bool,
+    script_args: &[String],
     interactive: bool,
 ) -> Result<()> {
     let rc_d = root.join("etc/rc.d");
@@ -433,7 +436,17 @@ fn inject_rc(
         body.push('\n');
     }
     if has_script {
-        body.push_str("  pcall(dofile, \"/home/ocplay_autorun.lua\")\n");
+        // Pass the CLI arguments through to the script as varargs, the same way
+        // OpenOS runs programs.
+        let mut args = String::new();
+        for arg in script_args {
+            args.push_str(", ");
+            args.push_str(&lua_string(arg));
+        }
+        body.push_str(&format!(
+            "  pcall(function(...) return assert(loadfile(\"/home/ocplay_autorun.lua\"))(...) end{})\n",
+            args
+        ));
     }
     if !interactive {
         body.push_str("  require(\"computer\").shutdown()\n");
@@ -449,6 +462,25 @@ fn inject_rc(
     cfg.push_str("enabled = {\"ocplay\"}\n");
     fs::write(&cfg_path, cfg).context("failed to enable rc service")?;
     Ok(())
+}
+
+/// Escape a value as a double-quoted Lua string literal.
+fn lua_string(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\{:03}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 fn copy_dir(from: &Path, to: &Path) -> Result<()> {

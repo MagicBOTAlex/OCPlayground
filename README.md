@@ -159,11 +159,14 @@ run:
 CLI overrides:
 
 ```
-ocplay [--interactive | --silent] [--timeout N] <computer.yaml> [script.lua]
+ocplay [--interactive | --silent] [--timeout N] <computer.yaml> [script.lua] [args...]
 ```
 
 - **silent** (default): no stdin; run the script, render while it goes, exit when it finishes or times out.
 - **`--interactive`**: run the script, then hand control to the live OpenOS shell.
+- **`[args...]`**: extra arguments are passed to the script as varargs, exactly like an OpenOS
+  program run from the shell — read them with `local args, options = require("shell").parse(...)`
+  or `local args = {...}`.
 
 ## Usage
 
@@ -179,6 +182,9 @@ cargo run -- --interactive examples/computer.yaml examples/mouse.lua
 
 # Stop after 30 seconds
 cargo run -- --timeout 30 examples/computer.yaml examples/test.lua
+
+# Pass arguments to the script (available as `...`)
+cargo run -- examples/computer.yaml examples/test.lua "test"
 ```
 
 The script is copied into the emulated filesystem and executed once OpenOS has
