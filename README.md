@@ -8,6 +8,26 @@ in-game screen to the terminal with full color support.
 ocplay ./computer.yaml test.lua
 ```
 
+## Installation
+
+With Nix (flakes):
+
+```sh
+./scripts/install.sh              # install / upgrade
+./scripts/install.sh --uninstall  # remove
+```
+
+The script wraps `nix profile install .#ocplay`. You can also run it without
+installing:
+
+```sh
+nix run .#ocplay -- --help
+nix build .#ocplay
+```
+
+The Nix package bundles the vendored OpenOS and points `OCPLAY_SYSTEM` at it, so
+the installed binary works from anywhere.
+
 ## Decisions
 
 These choices were made up front and drive the implementation:
